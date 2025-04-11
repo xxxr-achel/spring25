@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.IO Chat Application</title>
+    <style>
+      body { 
+        margin: 0; 
+        padding-bottom: 3rem; 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+        background-color: #f5f5f5;
+      }
+
+      .chat-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 1rem;
+      }
+
+      .header {
+        background-color: #4CAF50;
+        color: white;
+        padding: 1rem;
+        text-align: center;
+        border-radius: 5px 5px 0 0;
+        margin-bottom: 1rem;
+      }
+
+      #form { 
+        background: rgba(0, 0, 0, 0.1); 
+        padding: 0.25rem; 
+        position: fixed; 
+        bottom: 0; 
+        left: 0; 
+        right: 0; 
+        display: flex; 
+        height: 3rem; 
+        box-sizing: border-box; 
+        backdrop-filter: blur(10px); 
+      }
+      
+      #input { 
+        border: none; 
+        padding: 0 1rem; 
+        flex-grow: 1; 
+        border-radius: 2rem; 
+        margin: 0.25rem; 
+      }
+      
+      #input:focus { 
+        outline: none; 
+      }
+      
+      #form > button { 
+        background: #4CAF50; 
+        border: none; 
+        padding: 0 1rem; 
+        margin: 0.25rem; 
+        border-radius: 3px; 
+        outline: none; 
+        color: #fff; 
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+
+      #form > button:hover {
+        background: #45a049;
+      }
+
+      #messages { 
+        list-style-type: none; 
+        margin: 0; 
+        padding: 0; 
+        overflow-y: auto;
+        max-height: calc(100vh - 8rem);
+      }
+      
+      #messages > li { 
+        padding: 0.5rem 1rem; 
+        border-bottom: 1px solid #eee;
+        word-wrap: break-word;
+      }
+      
+      #messages > li:nth-child(odd) { 
+        background: #ffffff; 
+      }
+
+      .timestamp {
+        font-size: 0.8em;
+        color: #999;
+        margin-left: 0.5rem;
+      }
+
+      .status {
+        text-align: center;
+        color: #666;
+        font-style: italic;
+        padding: 0.5rem;
+      }
+
+      .error {
+        color: #ff0000;
+        text-align: center;
+        padding: 0.5rem;
+      }
+      
+      #debug {
+        position: fixed;
+        bottom: 3.5rem;
+        right: 0;
+        background: rgba(0,0,0,0.5);
+        color: white;
+        padding: 5px;
+        font-size: 10px;
+        max-width: 300px;
+        max-height: 100px;
+        overflow: auto;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chat-container">
+      <div class="header">
+        <h1>Chat Room</h1>
+      </div>
+      <ul id="messages"></ul>
+      <div id="status" class="status"></div>
+      <div id="error" class="error"></div>
+    </div>
+    
+    <form id="form" action="">
+      <input id="input" autocomplete="off" placeholder="Type a message..." /><button>Send</button>
+    </form>
+    
+    <div id="debug"></div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+      // Enable debug mode
+      const debugMode = true;
+      const debugElement = document.getElementById('debug');
+      if (debugMode) {
+        debugElement.style.display = 'block';
+      }
+      
+      // Debug logging function
+      function debugLog(message) {
+        if (debugMode) {
+          console.log(message);
+          const time = new Date().toLocaleTimeString();
+          debugElement.innerHTML += `<div>[${time}] ${message}</div>`;
+          if (debugElement.children.length > 10) {
+            debugElement.removeChild(debugElement.children[0]);
+          }
+        }
+      }
+      
+      // Socket.io connection with error handling
+      let socket;
+      try {
+        debugLog('Initializing socket connection');
+        // Connect to the server where the application is running
+        // Use the correct port (3000) where your server is running
+        const serverUrl = window.location.hostname + ':3000';
+        debugLog('Connecting to: ' + serverUrl);
+        
+        socket = io(window.location.protocol + '//' + serverUrl, {
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+          timeout: 10000
+        });
+        
+        socket.io.on("error", (error) => {
+          debugLog('Transport error: ' + error);
+          errorDiv.textContent = 'Connection error: ' + error;
+        });
+        
+        socket.io.on("reconnect_attempt", (attempt) => {
+          debugLog('Reconnection attempt: ' + attempt);
+          statusDiv.textContent = 'Attempting to reconnect... (' + attempt + ')';
+        });
+      } catch (e) {
+        debugLog('Error initializing socket: ' + e.message);
+        document.getElementById('error').textContent = 'Failed to initialize socket connection: ' + e.message;
+      }
+      
+      const messages = document.getElementById('messages');
+      const form = document.getElementById('form');
+      const input = document.getElementById('input');
+      const statusDiv = document.getElementById('status');
+      const errorDiv = document.getElementById('error');
+
+      // Connection successful
+      socket.on('connect', () => {
+        debugLog('Connected to server with ID: ' + socket.id);
+        statusDiv.textContent = 'Connected to chat server';
+        setTimeout(() => {
+          statusDiv.textContent = '';
+        }, 3000);
+      });
+      
+      // Connection error
+      socket.on('connect_error', (error) => {
+        debugLog('Connection error: ' + error);
+        errorDiv.textContent = 'Failed to connect to server, please refresh the page';
+      });
+
+      // Disconnection
+      socket.on('disconnect', () => {
+        debugLog('Disconnected from server');
+        statusDiv.textContent = 'Disconnected from server';
+      });
+
+      // Load message history
+      socket.on('load previous messages', (previousMessages) => {
+        debugLog('Received message history: ' + previousMessages.length + ' messages');
+        messages.innerHTML = '';
+        if (previousMessages.length === 0) {
+          const notice = document.createElement('li');
+          notice.textContent = 'No message history';
+          notice.className = 'status';
+          messages.appendChild(notice);
+          debugLog('No message history displayed');
+        } else {
+          previousMessages.forEach((message) => {
+            appendMessage(message.content, new Date(message.timestamp));
+          });
+          debugLog('Displayed ' + previousMessages.length + ' previous messages');
+        }
+        scrollToBottom();
+      });
+
+      // Receive new message
+      socket.on('chat message', (msg) => {
+        debugLog('Received new message: ' + msg);
+        appendMessage(msg);
+        scrollToBottom();
+      });
+
+      // Error handling
+      socket.on('error', (errorMsg) => {
+        debugLog('Error event: ' + errorMsg);
+        errorDiv.textContent = errorMsg;
+        setTimeout(() => {
+          errorDiv.textContent = '';
+        }, 5000);
+      });
+
+      // Add message to list
+      function appendMessage(msg, timestamp = new Date()) {
+        debugLog('Appending message: ' + msg);
+        const item = document.createElement('li');
+        const formattedTime = formatTime(timestamp);
+        item.innerHTML = `${msg}<span class="timestamp">${formattedTime}</span>`;
+        messages.appendChild(item);
+        return item; // Return the created element for testing
+      }
+
+      // Format time
+      function formatTime(date) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      // Scroll to bottom
+      function scrollToBottom() {
+        window.scrollTo(0, document.body.scrollHeight);
+      }
+
+      // Send message
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (input.value) {
+          const message = input.value.trim();
+          debugLog('Sending message: ' + message);
+          
+          // Add message to our own view immediately with a "sending" state
+          const messageElement = appendMessage(message);
+          messageElement.style.opacity = '0.5';
+          
+          socket.emit('chat message', message);
+          input.value = '';
+          
+          // Update the message to full opacity after server confirms
+          socket.once('chat message', (confirmedMsg) => {
+            if (confirmedMsg === message) {
+              messageElement.style.opacity = '1';
+            }
+          });
+        }
+      });
+    </script>
+  </body>
+</html> 

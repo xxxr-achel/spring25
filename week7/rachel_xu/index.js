@@ -29,6 +29,6 @@ io.on('connection', function(socket){
 });
 
 server.listen(3000, async function(){
-  await mongoose.connect("mongodb+srv://xxxrachel:heyitsme_02@cluster0.ac62p1p.mongodb.net/")
+  await mongoose.connect("mongodb+srv://xxxrachel:<db_password>@cluster0.ac62p1p.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
   console.log('listening on *:3000');
 });
