@@ -13,9 +13,6 @@ function App() {
        let form = event.target;
        let formData = new FormData(form)
        let formDataObj = Object.fromEntries(formData.entries())
-
-
-       formDataObj.purchased = false;
        // formDataObj.cost = parseFloat(formDataObj.cost || 0);
 
 
@@ -53,5 +50,3 @@ function App() {
 
 
 export default App;
-
-
